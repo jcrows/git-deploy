@@ -64,6 +64,7 @@ module Git
     end
 
     def changed_files(command, init = nil)
+      
       files = `#{command}`
       puts command
 
@@ -81,9 +82,14 @@ module Git
         c = 'M' if c == 'A'
         c = 'M' if c == 'C'
         
+        if init
+          c = 'M' if c == 'H'
+        end
+        
         next unless c == 'M' || c == 'D'
 
         file = line[2..-1]
+        
                 
         if not $ignore_file_list.include? file
           if remote_files.key? file
@@ -201,7 +207,7 @@ module Git
         puts "Same revision, overwriting"
         remote_files = Git.diff_committed(@options['local_path'])
       else
-        remote_files = Git.diff_committed(@options['local_path'], "#{remote_revision}..HEAD")
+        remote_files = Git.diff_committed(@options['local_path'], "#{remote_revision}...HEAD")
       end
     end
 
@@ -402,7 +408,7 @@ module Git
     def connect
       puts "Connecting to #{@host} with TLS"
 
-      @ftps = Net::FTPTLS.new
+      @ftps = Net::FTP.new
 
       if @options['passive']
         @ftps.passive = true
@@ -411,12 +417,12 @@ module Git
       if @options['debug_mode']
         @ftps.debug_mode = true
       end
-      
+
       @ftps.binary = true
       @ftps.connect(@options['host'], @options['port'])
       @ftps.login(@options['user'], @options['password'])
-      
-      @ftps.chdir(@options['path'].empty? ? @options['chdir'] : '/' + @options['path'])    
+
+      @ftps.chdir(@options['path'].empty? ? @options['chdir'] : '/' + @options['path'])
     end
 
     def disconnect
@@ -438,7 +444,7 @@ module Git
       begin
         @ftps.delete(remote_file)
       rescue Net::FTPPermError, Net::FTPReplyError => e
-         
+        # 
       end
     end
 
@@ -452,9 +458,13 @@ module Git
         puts "Remote Revision: #{remote_revision}"
       rescue Net::FTPPermError => e
         raise e unless e.message[0..2] == '550'
-        remote_revision = @options['revision']
+        remote_revision = false
       end
       remote_revision
+    end
+    
+    def dir_empty?
+     @ftps.list('*').empty?
     end
 
     def mkdir_p(directory)
@@ -522,6 +532,7 @@ services.each do |uri, options|
   options['path']     = uri.path     if uri.path
   
   $ignore_file_list = ($ignore_file_list | options['ignore_file_list']) if options['ignore_file_list']
+#  puts "Ignoring files #{$ignore_file_list}"
   
   options.merge!(settings)
 
